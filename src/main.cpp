@@ -1,70 +1,126 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
+#include <cmath>
+#include <algorithm>
 
 using namespace geode::prelude;
 
 namespace {
-    // Liquid-glass palette. Alpha is intentionally low so the game remains visible.
-    constexpr ccColor4B GLASS_FILL   = { 47, 22, 83, 118 };
-    constexpr ccColor4B GLASS_EDGE   = { 220, 190, 255, 150 };
-    constexpr ccColor4B GLASS_GLOW   = { 155, 90, 255, 55 };
+    // Draw a genuinely rounded translucent panel using a smooth polygon.
+    // It is visual-only: it does not register touch handlers or cover controls.
+    class RoundedGlassPanel : public CCNode {
+    protected:
+        float m_width = 0.f;
+        float m_height = 0.f;
+        float m_radius = 16.f;
+        ccColor4F m_fill = {0.12f, 0.075f, 0.22f, 0.68f};
+        ccColor4F m_edge = {0.86f, 0.72f, 1.0f, 0.28f};
 
-    class GlassPanel : public CCLayerColor {
+        void draw() override {
+            CCNode::draw();
+            constexpr int segments = 10;
+            CCPoint points[segments * 4];
+            const float r = std::min(m_radius, std::min(m_width, m_height) * 0.5f);
+            const float pi = 3.14159265358979323846f;
+            const float centersX[4] = {m_width-r, r, r, m_width-r};
+            const float centersY[4] = {m_height-r, m_height-r, r, r};
+            const float starts[4] = {0.f, 90.f, 180.f, 270.f};
+            int index = 0;
+            for (int corner = 0; corner < 4; ++corner) {
+                for (int i = 0; i < segments; ++i) {
+                    const float angle = (starts[corner] + (90.f * i / (segments - 1))) * pi / 180.f;
+                    points[index++] = ccp(centersX[corner] + std::cos(angle) * r,
+                                          centersY[corner] + std::sin(angle) * r);
+                }
+            }
+            ccDrawSolidPoly(points, index, m_fill);
+
+            // A restrained inset highlight gives the glass a fine iOS-like edge.
+            ccDrawPoly(points, index, true);
+        }
+
     public:
-        static GlassPanel* create(CCSize size) {
-            auto panel = new GlassPanel();
-            if (panel && panel->initWithColor(GLASS_FILL, size.width, size.height)) {
+        static RoundedGlassPanel* create(float width, float height, float radius,
+                                          ccColor4F fill, ccColor4F edge) {
+            auto panel = new RoundedGlassPanel();
+            if (panel && panel->init()) {
+                panel->m_width = width;
+                panel->m_height = height;
+                panel->m_radius = radius;
+                panel->m_fill = fill;
+                panel->m_edge = edge;
+                panel->setContentSize({width, height});
                 panel->autorelease();
-                panel->setOpacity(220);
-                panel->setCascadeOpacityEnabled(true);
-
-                // Soft violet underglow and a thin glass-like outline.
-                auto glow = CCLayerColor::create(GLASS_GLOW, size.width + 10.f, size.height + 10.f);
-                glow->setPosition({ -5.f, -5.f });
-                glow->setZOrder(-1);
-                panel->addChild(glow);
-
-                auto outline = CCLayerColor::create(GLASS_EDGE, size.width, 1.f);
-                outline->setAnchorPoint({ 0.f, 1.f });
-                outline->setPosition({ 0.f, size.height });
-                panel->addChild(outline, 2);
-
-                auto bottom = CCLayerColor::create({ 255, 255, 255, 65 }, size.width, 1.f);
-                bottom->setAnchorPoint({ 0.f, 0.f });
-                panel->addChild(bottom, 2);
-
                 return panel;
             }
             CC_SAFE_DELETE(panel);
             return nullptr;
         }
     };
+
+    void addLabel(CCNode* parent, const char* text, const char* font,
+                  float scale, CCPoint position, ccColor3B color = {245, 239, 255}) {
+        auto label = CCLabelBMFont::create(text, font);
+        if (!label) return;
+        label->setScale(scale);
+        label->setPosition(position);
+        label->setColor(color);
+        label->setOpacity(240);
+        parent->addChild(label, 5);
+    }
 }
 
 class $modify(PurpleUIMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
-        auto winSize = CCDirector::get()->getWinSize();
+        const auto size = CCDirector::get()->getWinSize();
+        const float w = size.width;
+        const float h = size.height;
 
-        // Main-menu glass dock: visual theme foundation; original GD buttons remain functional.
-        auto dock = GlassPanel::create({ 270.f, 58.f });
-        if (dock) {
-            dock->setAnchorPoint({ 0.5f, 0.f });
-            dock->setPosition({ winSize.width / 2.f - 135.f, 10.f });
-            dock->setID("purpleui-main-glass-dock");
-            this->addChild(dock, 20);
+        // Soft purple veil; low opacity keeps the original GD background visible.
+        auto tint = CCLayerColor::create({20, 10, 42, 42}, w, h);
+        tint->setAnchorPoint({0.f, 0.f});
+        tint->setPosition({0.f, 0.f});
+        tint->setID("purpleui-background-tint");
+        this->addChild(tint, 1);
+
+        // Minimal floating title capsule.
+        const float headerW = std::min(w - 34.f, 310.f);
+        auto header = RoundedGlassPanel::create(headerW, 54.f, 22.f,
+            {0.16f, 0.10f, 0.28f, 0.78f}, {0.90f, 0.79f, 1.0f, 0.42f});
+        if (header) {
+            header->setPosition({(w - headerW) * 0.5f, h - 76.f});
+            header->setID("purpleui-header-glass");
+            this->addChild(header, 30);
+            addLabel(header, "PURPLE UI", "goldFont.fnt", 0.38f,
+                     {headerW * 0.5f, 34.f}, {250, 246, 255});
+            addLabel(header, "LIQUID GLASS", "bigFont.fnt", 0.19f,
+                     {headerW * 0.5f, 17.f}, {202, 180, 235});
         }
 
-        auto title = CCLabelBMFont::create("PURPLE UI", "goldFont.fnt");
-        if (title) {
-            title->setScale(0.34f);
-            title->setOpacity(220);
-            title->setPosition({ winSize.width / 2.f, 39.f });
-            title->setID("purpleui-title");
-            this->addChild(title, 21);
+        // A subtle rounded glass surface behind the original menu area.
+        // Kept very transparent so the original icons remain clear.
+        const float panelW = std::min(w - 44.f, 350.f);
+        auto center = RoundedGlassPanel::create(panelW, 184.f, 28.f,
+            {0.13f, 0.075f, 0.23f, 0.38f}, {0.88f, 0.75f, 1.0f, 0.17f});
+        if (center) {
+            center->setPosition({(w - panelW) * 0.5f, h * 0.5f - 91.f});
+            center->setID("purpleui-main-glass-surface");
+            this->addChild(center, 2);
         }
 
+        // Compact floating bottom capsule, like an iOS status/dock element.
+        const float footerW = std::min(w - 54.f, 224.f);
+        auto footer = RoundedGlassPanel::create(footerW, 34.f, 17.f,
+            {0.15f, 0.09f, 0.27f, 0.76f}, {0.92f, 0.82f, 1.0f, 0.34f});
+        if (footer) {
+            footer->setPosition({(w - footerW) * 0.5f, 16.f});
+            footer->setID("purpleui-footer-glass");
+            this->addChild(footer, 30);
+            addLabel(footer, "A NEW WAY TO PLAY", "bigFont.fnt", 0.22f,
+                     {footerW * 0.5f, 17.f}, {224, 211, 246});
+        }
         return true;
     }
 };
