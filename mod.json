@@ -1,8 +1,12 @@
 {
-  "geode": "5.11.2",
-  "version": "v1.0.0",
-  "id": "matias.purpleui",
-  "name": "PurpleUI",
-  "developer": "Matias",
-  "description": "A smooth fullscreen dark-purple interface for Geometry Dash."
+    "geode": "5.11.2",
+    "gd": {
+        "win": "2.2081",
+        "android": "2.2081"
+    },
+    "version": "v1.0.0",
+    "id": "pulidoxgd.purpleui",
+    "name": "PurpleUI",
+    "developer": "pulidoxgd",
+    "description": "A smooth fullscreen dark-purple interface for Geometry Dash."
 }
