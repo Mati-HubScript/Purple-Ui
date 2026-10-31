@@ -5,8 +5,13 @@
         "android": "2.2081"
     },
     "version": "v1.0.0",
-    "id": "pulidoxgd.purpleui",
+    "id": "matias.purpleui",
     "name": "PurpleUI",
     "developer": "pulidoxgd",
-    "description": "A smooth fullscreen dark-purple interface for Geometry Dash."
+    "description": "A purple Liquid Glass interface theme for Geometry Dash.",
+    "tags": [
+        "interface",
+        "utility"
+    ],
+    "dependencies": {}
 }
